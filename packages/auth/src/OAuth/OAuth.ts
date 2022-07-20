@@ -26,10 +26,11 @@ import { ConsoleLogger as Logger, Hub, urlSafeEncode } from '@aws-amplify/core';
 import sha256 from 'crypto-js/sha256';
 import Base64 from 'crypto-js/enc-base64';
 
-const AMPLIFY_SYMBOL = (typeof Symbol !== 'undefined' &&
-typeof Symbol.for === 'function'
-	? Symbol.for('amplify_default')
-	: '@@amplify_default') as Symbol;
+const AMPLIFY_SYMBOL = (
+	typeof Symbol !== 'undefined' && typeof Symbol.for === 'function'
+		? Symbol.for('amplify_default')
+		: '@@amplify_default'
+) as Symbol;
 
 const dispatchAuthEvent = (event: string, data: any, message: string) => {
 	Hub.dispatch('auth', { event, data, message }, 'Auth', AMPLIFY_SYMBOL);
@@ -134,7 +135,7 @@ export default class OAuth {
 		}
 
 		const oAuthTokenEndpoint =
-			'https://' + this._config.domain + '/oauth2/token';
+			'https://' + this._config.exchange_domain + '/oauth2/token';
 
 		dispatchAuthEvent(
 			'codeFlow',
@@ -160,36 +161,30 @@ export default class OAuth {
 			...(code_verifier ? { code_verifier } : {}),
 		};
 
-		logger.debug(
-			`Calling token endpoint: ${oAuthTokenEndpoint} with`,
-			oAuthTokenBody
-		);
-
-		const body = Object.entries(oAuthTokenBody)
-			.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-			.join('&');
+		logger.debug(`Token params:`, oAuthTokenBody);
 
 		const {
-			access_token,
-			refresh_token,
-			id_token,
+			username,
+			code: exchange_token,
 			error,
-		} = await ((await fetch(oAuthTokenEndpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-			},
-			body,
-		})) as any).json();
+		} = await (
+			(await fetch(oAuthTokenEndpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(oAuthTokenBody),
+				credentials: 'include',
+			})) as any
+		).json();
 
 		if (error) {
 			throw new Error(error);
 		}
 
 		return {
-			accessToken: access_token,
-			refreshToken: refresh_token,
-			idToken: id_token,
+			username,
+			code: exchange_token,
 		};
 	}
 
@@ -240,11 +235,8 @@ export default class OAuth {
 			logger.debug(
 				`Starting ${this._config.responseType} flow with ${currentUrl}`
 			);
-			if (this._config.responseType === 'code') {
-				return { ...(await this._handleCodeFlow(currentUrl)), state };
-			} else {
-				return { ...(await this._handleImplicitFlow(currentUrl)), state };
-			}
+
+			return { ...(await this._handleCodeFlow(currentUrl)), state };
 		} catch (e) {
 			logger.error(`Error handling auth response.`, e);
 			throw e;
@@ -264,6 +256,31 @@ export default class OAuth {
 			throw new Error('Invalid state in OAuth flow');
 		}
 		return returnedState;
+	}
+
+	public async handleExchangeToken(
+		code: string,
+		token: string
+	): Promise<string> {
+		const oAuthTokenExchangeEndpoint =
+			'https://' + this._config.exchange_domain + '/oauth2/exchange';
+
+		const { token: response, error } = await (
+			(await fetch(oAuthTokenExchangeEndpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ code, token }),
+				credentials: 'include',
+			})) as any
+		).json();
+
+		if (error) {
+			throw new Error(error);
+		}
+
+		return response;
 	}
 
 	public async signOut() {

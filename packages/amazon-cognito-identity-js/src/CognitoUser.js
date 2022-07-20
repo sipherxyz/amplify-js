@@ -469,7 +469,8 @@ export default class CognitoUser {
 			let userAttributes = null;
 			let rawRequiredAttributes = null;
 			const requiredAttributes = [];
-			const userAttributesPrefix = authenticationHelper.getNewPasswordRequiredChallengeUserAttributePrefix();
+			const userAttributesPrefix =
+				authenticationHelper.getNewPasswordRequiredChallengeUserAttributePrefix();
 
 			if (challengeParameters) {
 				userAttributes = JSON.parse(
@@ -589,7 +590,8 @@ export default class CognitoUser {
 		const authenticationHelper = new AuthenticationHelper(
 			this.pool.getUserPoolId().split('_')[1]
 		);
-		const userAttributesPrefix = authenticationHelper.getNewPasswordRequiredChallengeUserAttributePrefix();
+		const userAttributesPrefix =
+			authenticationHelper.getNewPasswordRequiredChallengeUserAttributePrefix();
 
 		const finalUserAttributes = {};
 		if (requiredAttributeData) {
@@ -811,7 +813,30 @@ export default class CognitoUser {
 		if (this.getUserContextData()) {
 			jsonReq.UserContextData = this.getUserContextData();
 		}
-		this.client.request('RespondToAuthChallenge', jsonReq, (err, data) => {
+
+		const respondToAuthChallenge = (challenge, challengeCallback) =>
+			this.client.request(
+				'RespondToAuthChallenge',
+				challenge,
+				(errChallenge, dataChallenge) => {
+					if (
+						errChallenge &&
+						errChallenge.code === 'ResourceNotFoundException' &&
+						errChallenge.message.toLowerCase().indexOf('device') !== -1
+					) {
+						challengeResponses.DEVICE_KEY = null;
+						this.deviceKey = null;
+						this.randomPassword = null;
+						this.deviceGroupKey = null;
+						this.clearCachedDeviceKeyAndPassword();
+						return respondToAuthChallenge(challenge, challengeCallback);
+					}
+
+					return challengeCallback(errChallenge, dataChallenge);
+				}
+			);
+
+		respondToAuthChallenge(jsonReq, (err, data) => {
 			if (err) {
 				return callback.onFailure(err);
 			}
@@ -1485,9 +1510,8 @@ export default class CognitoUser {
 				) {
 					authenticationResult.RefreshToken = refreshToken.getToken();
 				}
-				this.signInUserSession = this.getCognitoUserSession(
-					authenticationResult
-				);
+				this.signInUserSession =
+					this.getCognitoUserSession(authenticationResult);
 				this.cacheTokens();
 				return wrappedCallback(null, this.signInUserSession);
 			}

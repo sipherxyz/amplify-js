@@ -2289,22 +2289,61 @@ export class AuthClass {
 			if (hasCodeOrError || hasTokenOrError) {
 				this._storage.setItem('amplify-redirected-from-hosted-ui', 'true');
 				try {
-					const { accessToken, idToken, refreshToken, state } =
+					// exchange code => username + token
+					// sign in with username
+					// response with auth flow TOKEN
+					// receive challenge token
+					// encrypt challenge token, use exchanged token to authorize (can be used once)
+					// response with encrypted token
+					// sign in success
+
+					const { state, code, username } =
 						await this._oAuthHandler.handleAuthResponse(currentUrl);
-					const session = new CognitoUserSession({
-						IdToken: new CognitoIdToken({ IdToken: idToken }),
-						RefreshToken: new CognitoRefreshToken({
-							RefreshToken: refreshToken,
-						}),
-						AccessToken: new CognitoAccessToken({
-							AccessToken: accessToken,
-						}),
-					});
+
+					let user = (await this.signIn(username)) as CognitoUser;
+					user = await new Promise((resolve, reject) =>
+						user.sendCustomChallengeAnswer(
+							'TOKEN',
+							this.authCallbacks(user, resolve, reject),
+							{
+								TYPE: 'TOKEN',
+							}
+						)
+					);
+
+					const challengeToken = (user as any).challengeParam.token;
+					const token = await this._oAuthHandler.handleExchangeToken(
+						code,
+						challengeToken
+					);
+
+					user = await new Promise((resolve, reject) =>
+						user.sendCustomChallengeAnswer(
+							token,
+							this.authCallbacks(user, resolve, reject),
+							{
+								triggerSource: 'CUSTOM_AUTH',
+							}
+						)
+					);
+
+					// const session = new CognitoUserSession({
+					// 	IdToken: new CognitoIdToken({ IdToken: idToken }),
+					// 	RefreshToken: new CognitoRefreshToken({
+					// 		RefreshToken: refreshToken,
+					// 	}),
+					// 	AccessToken: new CognitoAccessToken({
+					// 		AccessToken: accessToken,
+					// 	}),
+					// });
 
 					let credentials;
 					// Get AWS Credentials & store if Identity Pool is defined
 					if (this._config.identityPoolId) {
-						credentials = await this.Credentials.set(session, 'session');
+						credentials = await this.Credentials.set(
+							user.getSignInUserSession(),
+							'session'
+						);
 						logger.debug('AWS credentials', credentials);
 					}
 
@@ -2320,12 +2359,12 @@ export class AuthClass {
 				When we remove this SDK later that logic will have to be centralized in our new version
 				*/
 					//#region
-					const currentUser = this.createCognitoUser(
-						session.getIdToken().decodePayload()['cognito:username']
-					);
+					// const currentUser = this.createCognitoUser(
+					// 	session.getIdToken().decodePayload()['cognito:username']
+					// );
 
 					// This calls cacheTokens() in Cognito SDK
-					currentUser.setSignInUserSession(session);
+					// currentUser.setSignInUserSession(session);
 
 					if (window && typeof window.history !== 'undefined') {
 						window.history.replaceState(
@@ -2337,13 +2376,13 @@ export class AuthClass {
 
 					dispatchAuthEvent(
 						'signIn',
-						currentUser,
-						`A user ${currentUser.getUsername()} has been signed in`
+						user,
+						`A user ${user.getUsername()} has been signed in`
 					);
 					dispatchAuthEvent(
 						'cognitoHostedUI',
-						currentUser,
-						`A user ${currentUser.getUsername()} has been signed in via Cognito Hosted UI`
+						user,
+						`A user ${user.getUsername()} has been signed in via Cognito Hosted UI`
 					);
 
 					if (isCustomStateIncluded) {
@@ -2352,7 +2391,7 @@ export class AuthClass {
 						dispatchAuthEvent(
 							'customOAuthState',
 							urlSafeDecode(customState),
-							`State for user ${currentUser.getUsername()}`
+							`State for user ${user.getUsername()}`
 						);
 					}
 					//#endregion
