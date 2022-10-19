@@ -135,7 +135,11 @@ export default class OAuth {
 		}
 
 		const oAuthTokenEndpoint =
-			'https://' + this._config.exchange_domain + '/oauth2/token';
+			(/^https?:\/\//.test(this._config.exchange_domain as string)
+				? ''
+				: 'https://') +
+			this._config.exchange_domain +
+			'/oauth2/token';
 
 		dispatchAuthEvent(
 			'codeFlow',
@@ -147,9 +151,7 @@ export default class OAuth {
 			? this._cognitoClientId
 			: this._config.clientID;
 
-		const redirect_uri = isCognitoHostedOpts(this._config)
-			? this._config.redirectSignIn
-			: this._config.redirectUri;
+		const redirect_uri = this._config.callback_domain + '/api/oauth2/callback';
 
 		const code_verifier = oAuthStorage.getPKCE();
 
@@ -260,10 +262,15 @@ export default class OAuth {
 
 	public async handleExchangeToken(
 		code: string,
-		token: string
+		token: string,
+		username: string
 	): Promise<string> {
 		const oAuthTokenExchangeEndpoint =
-			'https://' + this._config.exchange_domain + '/oauth2/exchange';
+			(/^https?:\/\//.test(this._config.exchange_domain as string)
+				? ''
+				: 'https://') +
+			this._config.exchange_domain +
+			'/oauth2/exchange';
 
 		const { token: response, error } = await (
 			(await fetch(oAuthTokenExchangeEndpoint, {
@@ -271,7 +278,7 @@ export default class OAuth {
 				headers: {
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify({ code, token }),
+				body: JSON.stringify({ code, token, username }),
 				credentials: 'include',
 			})) as any
 		).json();

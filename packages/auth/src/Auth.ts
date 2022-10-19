@@ -2204,9 +2204,9 @@ export class AuthClass {
 					? this._config.userPoolWebClientId
 					: this._config.oauth.clientID;
 				/*Note: Invenstigate automatically adding trailing slash */
-				const redirect_uri = isCognitoHostedOpts(this._config.oauth)
-					? this._config.oauth.redirectSignIn
-					: this._config.oauth.redirectUri;
+				const redirect_uri =
+					(this._oAuthHandler as any)._config.callback_domain +
+					'/api/oauth2/callback';
 
 				this._oAuthHandler.oauthSignIn(
 					this._config.oauth.responseType,
@@ -2314,7 +2314,8 @@ export class AuthClass {
 					const challengeToken = (user as any).challengeParam.token;
 					const token = await this._oAuthHandler.handleExchangeToken(
 						code,
-						challengeToken
+						challengeToken,
+						username
 					);
 
 					user = await new Promise((resolve, reject) =>
@@ -2374,6 +2375,7 @@ export class AuthClass {
 						);
 					}
 
+					this._storage.setItem('amplify-redirected-from-hosted-ui', 'true');
 					dispatchAuthEvent(
 						'signIn',
 						user,
