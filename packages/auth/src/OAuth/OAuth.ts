@@ -113,7 +113,7 @@ export default class OAuth {
 			.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
 			.join('&');
 
-		const URL = `https://${domain}/oauth2/authorize?${queryString}`;
+		const URL = `http://${domain}/oauth2/authorize?${queryString}`;
 		logger.debug(`Redirecting to ${URL}`);
 		this._urlOpener(URL, redirectSignIn);
 	}
@@ -121,10 +121,13 @@ export default class OAuth {
 	private async _handleCodeFlow(currentUrl: string) {
 		/* Convert URL into an object with parameters as keys
     { redirect_uri: 'http://localhost:3000/', response_type: 'code', ...} */
-		const { code } = (parse(currentUrl).query || '')
+		const { code, username } = (parse(currentUrl).query || '')
 			.split('&')
 			.map(pairings => pairings.split('='))
-			.reduce((accum, [k, v]) => ({ ...accum, [k]: v }), { code: undefined });
+			.reduce((accum, [k, v]) => ({ ...accum, [k]: v }), {
+				code: undefined,
+				username: undefined,
+			});
 
 		const currentUrlPathname = parse(currentUrl).pathname || '/';
 		const redirectSignInPathname =
@@ -134,60 +137,62 @@ export default class OAuth {
 			return;
 		}
 
-		const oAuthTokenEndpoint =
-			(/^https?:\/\//.test(this._config.exchange_domain as string)
-				? ''
-				: 'https://') +
-			this._config.exchange_domain +
-			'/oauth2/token';
+		return { code, username };
 
-		dispatchAuthEvent(
-			'codeFlow',
-			{},
-			`Retrieving tokens from ${oAuthTokenEndpoint}`
-		);
+		// const oAuthTokenEndpoint =
+		// 	(/^https?:\/\//.test(this._config.exchange_domain as string)
+		// 		? ''
+		// 		: 'https://') +
+		// 	this._config.exchange_domain +
+		// 	'/oauth2/token';
 
-		const client_id = isCognitoHostedOpts(this._config)
-			? this._cognitoClientId
-			: this._config.clientID;
+		// dispatchAuthEvent(
+		// 	'codeFlow',
+		// 	{},
+		// 	`Retrieving tokens from ${oAuthTokenEndpoint}`
+		// );
 
-		const redirect_uri = this._config.callback_domain + '/api/oauth2/callback';
+		// const client_id = isCognitoHostedOpts(this._config)
+		// 	? this._cognitoClientId
+		// 	: this._config.clientID;
 
-		const code_verifier = oAuthStorage.getPKCE();
+		// const redirect_uri = this._config.callback_domain + '/api/oauth2/callback';
 
-		const oAuthTokenBody = {
-			grant_type: 'authorization_code',
-			code,
-			client_id,
-			redirect_uri,
-			...(code_verifier ? { code_verifier } : {}),
-		};
+		// const code_verifier = oAuthStorage.getPKCE();
 
-		logger.debug(`Token params:`, oAuthTokenBody);
+		// const oAuthTokenBody = {
+		// 	grant_type: 'authorization_code',
+		// 	code,
+		// 	client_id,
+		// 	redirect_uri,
+		// 	...(code_verifier ? { code_verifier } : {}),
+		// };
 
-		const {
-			username,
-			code: exchange_token,
-			error,
-		} = await (
-			(await fetch(oAuthTokenEndpoint, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify(oAuthTokenBody),
-				credentials: 'include',
-			})) as any
-		).json();
+		// logger.debug(`Token params:`, oAuthTokenBody);
 
-		if (error) {
-			throw new Error(error);
-		}
+		// const {
+		// 	username,
+		// 	code: exchange_token,
+		// 	error,
+		// } = await (
+		// 	(await fetch(oAuthTokenEndpoint, {
+		// 		method: 'POST',
+		// 		headers: {
+		// 			'Content-Type': 'application/json',
+		// 		},
+		// 		body: JSON.stringify(oAuthTokenBody),
+		// 		credentials: 'include',
+		// 	})) as any
+		// ).json();
 
-		return {
-			username,
-			code: exchange_token,
-		};
+		// if (error) {
+		// 	throw new Error(error);
+		// }
+
+		// return {
+		// 	username,
+		// 	code: exchange_token,
+		// };
 	}
 
 	private async _handleImplicitFlow(currentUrl: string) {

@@ -2303,24 +2303,24 @@ export class AuthClass {
 					let user = (await this.signIn(username)) as CognitoUser;
 					user = await new Promise((resolve, reject) =>
 						user.sendCustomChallengeAnswer(
-							'TOKEN',
+							'SOCIAL_SIGN_IN_CODE',
 							this.authCallbacks(user, resolve, reject),
 							{
-								TYPE: 'TOKEN',
+								TYPE: 'SOCIAL_SIGN_IN_CODE',
 							}
 						)
 					);
 
-					const challengeToken = (user as any).challengeParam.token;
-					const token = await this._oAuthHandler.handleExchangeToken(
-						code,
-						challengeToken,
-						username
-					);
+					// const challengeToken = (user as any).challengeParam.token;
+					// const token = await this._oAuthHandler.handleExchangeToken(
+					// 	code,
+					// 	challengeToken,
+					// 	username
+					// );
 
 					user = await new Promise((resolve, reject) =>
 						user.sendCustomChallengeAnswer(
-							token,
+							code,
 							this.authCallbacks(user, resolve, reject),
 							{
 								triggerSource: 'CUSTOM_AUTH',
