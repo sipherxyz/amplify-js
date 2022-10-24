@@ -78,7 +78,7 @@ const logger = new Logger('AuthClass');
 const USER_ADMIN_SCOPE = 'aws.cognito.signin.user.admin';
 
 // 10 sec, following this guide https://www.nngroup.com/articles/response-times-3-important-limits/
-const OAUTH_FLOW_MS_TIMEOUT = 10 * 1000;
+const OAUTH_FLOW_MS_TIMEOUT = 30 * 1000;
 
 const AMPLIFY_SYMBOL = (
 	typeof Symbol !== 'undefined' && typeof Symbol.for === 'function'
