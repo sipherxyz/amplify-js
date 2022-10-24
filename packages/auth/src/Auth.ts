@@ -2210,7 +2210,9 @@ export class AuthClass {
 
 				this._oAuthHandler.oauthSignIn(
 					this._config.oauth.responseType,
-					this._config.oauth.domain,
+					(this._config.oauth as AwsCognitoOAuthOpts).options[
+						'exchange_domain'
+					],
 					redirect_uri,
 					client_id,
 					provider,

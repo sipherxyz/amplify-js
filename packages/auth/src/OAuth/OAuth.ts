@@ -113,7 +113,13 @@ export default class OAuth {
 			.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
 			.join('&');
 
-		const URL = `http://${domain}/oauth2/authorize?${queryString}`;
+		const URL = `${
+			domain.startsWith('http')
+				? ''
+				: domain.includes('localhost') || domain.includes('127.0.0.1')
+				? 'http://'
+				: 'https://'
+		}${domain}/oauth2/authorize?${queryString}`;
 		logger.debug(`Redirecting to ${URL}`);
 		this._urlOpener(URL, redirectSignIn);
 	}
