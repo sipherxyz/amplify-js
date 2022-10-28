@@ -2294,6 +2294,9 @@ export class AuthClass {
 
 			if (hasCodeOrError || hasTokenOrError) {
 				this._storage.setItem('amplify-redirected-from-hosted-ui', 'true');
+
+				let username;
+
 				try {
 					// exchange code => username + token
 					// sign in with username
@@ -2303,8 +2306,11 @@ export class AuthClass {
 					// response with encrypted token
 					// sign in success
 
-					const { state, code, username } =
-						await this._oAuthHandler.handleAuthResponse(currentUrl);
+					const result = await this._oAuthHandler.handleAuthResponse(
+						currentUrl
+					);
+					const { state, code } = result;
+					username = result?.username;
 
 					let user = (await this.signIn(username)) as CognitoUser;
 					user = await new Promise((resolve, reject) =>
@@ -2416,6 +2422,14 @@ export class AuthClass {
 							null,
 							(this._config.oauth as AwsCognitoOAuthOpts).redirectSignIn
 						);
+					}
+
+					if (
+						err?.code === 'NotAuthorizedException' &&
+						err?.message === 'User is disabled.' &&
+						username
+					) {
+						err.username = username;
 					}
 
 					dispatchAuthEvent(
