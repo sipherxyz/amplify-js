@@ -1905,6 +1905,10 @@ export class AuthClass {
 		resolve: () => void,
 		reject: (reason?: any) => void
 	) {
+		// 27.10.2022: no need to sign out with redirect url any more
+		resolve();
+		return;
+
 		const { isBrowser } = browserOrNode();
 
 		if (isBrowser) {
