@@ -78,7 +78,7 @@ const logger = new Logger('AuthClass');
 const USER_ADMIN_SCOPE = 'aws.cognito.signin.user.admin';
 
 // 10 sec, following this guide https://www.nngroup.com/articles/response-times-3-important-limits/
-const OAUTH_FLOW_MS_TIMEOUT = 30 * 1000;
+const OAUTH_FLOW_MS_TIMEOUT = 10 * 1000;
 
 const AMPLIFY_SYMBOL = (
 	typeof Symbol !== 'undefined' && typeof Symbol.for === 'function'
@@ -1436,7 +1436,10 @@ export class AuthClass {
 		return new Promise((res, rej) => {
 			this._storageSync
 				.then(async () => {
-					if (this.isOAuthInProgress()) {
+					// 03.11.2022:
+					// no need to wait for oauth flow to complete
+					// because now we're using custom auth flow and at the end of custom auth flow we have a valid session
+					if (false && this.isOAuthInProgress()) {
 						logger.debug('OAuth signIn in progress, waiting for resolution...');
 
 						await new Promise(res => {
@@ -2309,18 +2312,26 @@ export class AuthClass {
 					const result = await this._oAuthHandler.handleAuthResponse(
 						currentUrl
 					);
-					const { state, code } = result;
+					const { state, code = '' } = result;
 					username = result?.username;
 
+					dispatchAuthEvent(
+						'codeFlow',
+						{},
+						`Retrieving tokens from custom auth flow`
+					);
 					let user = (await this.signIn(username)) as CognitoUser;
-					user = await new Promise((resolve, reject) =>
-						user.sendCustomChallengeAnswer(
-							'SOCIAL_SIGN_IN_CODE',
-							this.authCallbacks(user, resolve, reject),
-							{
-								TYPE: 'SOCIAL_SIGN_IN_CODE',
-							}
-						)
+					dispatchAuthEvent(
+						'codeFlow',
+						{},
+						`Retrieving tokens from custom auth flow`
+					);
+					user = await this.sendCustomChallengeAnswer(
+						user,
+						'SOCIAL_SIGN_IN_CODE',
+						{
+							TYPE: 'SOCIAL_SIGN_IN_CODE',
+						}
 					);
 
 					// const challengeToken = (user as any).challengeParam.token;
@@ -2330,15 +2341,9 @@ export class AuthClass {
 					// 	username
 					// );
 
-					user = await new Promise((resolve, reject) =>
-						user.sendCustomChallengeAnswer(
-							code,
-							this.authCallbacks(user, resolve, reject),
-							{
-								triggerSource: 'CUSTOM_AUTH',
-							}
-						)
-					);
+					user = await this.sendCustomChallengeAnswer(user, code, {
+						triggerSource: 'CUSTOM_AUTH',
+					});
 
 					// const session = new CognitoUserSession({
 					// 	IdToken: new CognitoIdToken({ IdToken: idToken }),
